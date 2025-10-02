@@ -1,0 +1,13 @@
+# Simple Firebase Storage Rules for Testing
+# Copy these rules to your Firebase Console > Storage > Rules
+# WARNING: These rules are permissive and should only be used for development/testing
+
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow all authenticated users to read/write (for testing only)
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

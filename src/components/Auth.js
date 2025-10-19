@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { User, Lock, Mail, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Mail, Eye, EyeOff, FileText } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function Auth() {
@@ -44,18 +44,39 @@ export default function Auth() {
     <div className="auth-container">
       <div className="auth-card">
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
+          <div style={{ 
+            width: '80px', 
+            height: '80px', 
+            margin: '0 auto 20px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)',
+            animation: 'float 3s ease-in-out infinite'
+          }}>
+            <FileText size={40} color="white" />
+          </div>
+          <h1 style={{ fontSize: '32px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>
             CollabNotes
           </h1>
-          <p style={{ color: '#6b7280' }}>
+          <p style={{ color: '#6b7280', fontSize: '15px' }}>
             Real-time collaborative note-taking platform
           </p>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">
-              <Mail size={16} style={{ display: 'inline', marginRight: '8px' }} />
+            <label htmlFor="email" style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              marginBottom: '8px',
+              fontWeight: '500',
+              color: '#374151'
+            }}>
+              <Mail size={16} />
               Email
             </label>
             <input
@@ -66,6 +87,14 @@ export default function Auth() {
               className="input"
               required
               placeholder="Enter your email"
+              style={{
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '2px solid #e5e7eb',
+                fontSize: '14px',
+                transition: 'all 0.2s ease',
+                backgroundColor: '#fafafa'
+              }}
             />
           </div>
 
@@ -126,10 +155,25 @@ export default function Auth() {
             type="submit"
             disabled={loading}
             className="btn btn-primary"
-            style={{ width: '100%', marginBottom: '16px' }}
+            style={{ 
+              width: '100%', 
+              marginBottom: '16px',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              fontSize: '16px',
+              fontWeight: '600',
+              background: loading ? '#9ca3af' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none',
+              boxShadow: loading ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)',
+              transform: loading ? 'none' : 'translateY(0)',
+              transition: 'all 0.2s ease'
+            }}
           >
             {loading ? (
-              <div className="spinner" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div className="spinner" />
+                <span>Please wait...</span>
+              </div>
             ) : (
               <>
                 <User size={16} />

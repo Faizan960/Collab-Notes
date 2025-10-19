@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ref, update, onValue, remove } from 'firebase/database';
 import { database } from '../firebase';
-import { Save, Clock, FileText, Trash2, Move } from 'lucide-react';
+import { Save, Clock, FileText, Trash2, Move, Maximize2, Minimize2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import AttachmentManager from './AttachmentManager';
 import ConfirmationDialog from './ConfirmationDialog';
+import FormattingToolbar from './FormattingToolbar';
 
 export default function NoteEditor({ note, groupId, folderId, currentUser, onDeleteNote, onMoveNote }) {
   const [title, setTitle] = useState(note?.title || '');
@@ -15,8 +16,10 @@ export default function NoteEditor({ note, groupId, folderId, currentUser, onDel
   const [isOnline, setIsOnline] = useState(true);
   const [attachments, setAttachments] = useState([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const saveTimeoutRef = useRef(null);
   const titleInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
   // Update local state when note prop changes
   useEffect(() => {
@@ -185,6 +188,69 @@ export default function NoteEditor({ note, groupId, folderId, currentUser, onDel
     setContent(e.target.value);
   };
 
+  const handleFormat = (format, value = '') => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    let formattedText = '';
+
+    switch (format) {
+      case 'bold':
+        formattedText = `**${selectedText || 'bold text'}**`;
+        break;
+      case 'italic':
+        formattedText = `*${selectedText || 'italic text'}*`;
+        break;
+      case 'underline':
+        formattedText = `<u>${selectedText || 'underlined text'}</u>`;
+        break;
+      case 'h1':
+        formattedText = `# ${selectedText || 'Heading 1'}`;
+        break;
+      case 'h2':
+        formattedText = `## ${selectedText || 'Heading 2'}`;
+        break;
+      case 'h3':
+        formattedText = `### ${selectedText || 'Heading 3'}`;
+        break;
+      case 'ul':
+        formattedText = `- ${selectedText || 'List item'}`;
+        break;
+      case 'ol':
+        formattedText = `1. ${selectedText || 'List item'}`;
+        break;
+      case 'quote':
+        formattedText = `> ${selectedText || 'Quote text'}`;
+        break;
+      case 'code':
+        formattedText = selectedText ? `\`\`\`\n${selectedText}\n\`\`\`` : '```\ncode here\n```';
+        break;
+      case 'link':
+        const url = prompt('Enter URL:');
+        if (url) {
+          formattedText = `[${selectedText || 'link text'}](${url})`;
+        } else {
+          return;
+        }
+        break;
+      default:
+        return;
+    }
+
+    const newContent = content.substring(0, start) + formattedText + content.substring(end);
+    setContent(newContent);
+
+    // Set cursor position after formatting
+    setTimeout(() => {
+      const newCursorPos = start + formattedText.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+      textarea.focus();
+    }, 0);
+  };
+
   const handleDeleteNote = () => {
     setShowDeleteDialog(true);
   };
@@ -240,139 +306,280 @@ export default function NoteEditor({ note, groupId, folderId, currentUser, onDel
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Header */}
+    <div style={{ 
+      height: '100%', 
+      display: 'flex', 
+      flexDirection: 'column',
+      position: isFullscreen ? 'fixed' : 'relative',
+      top: isFullscreen ? 0 : 'auto',
+      left: isFullscreen ? 0 : 'auto',
+      right: isFullscreen ? 0 : 'auto',
+      bottom: isFullscreen ? 0 : 'auto',
+      zIndex: isFullscreen ? 9999 : 'auto',
+      background: isFullscreen ? '#f8fafc' : 'transparent'
+    }}>
+      {/* Evernote-style Header */}
       <div style={{ 
-        padding: '20px', 
-        borderBottom: '1px solid #e5e7eb',
-        backgroundColor: 'white'
+        background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+        borderBottom: '1px solid #e2e8f0',
+        padding: '0'
       }}>
-        <div style={{ marginBottom: '16px' }}>
-          <input
-            ref={titleInputRef}
-            type="text"
-            value={title}
-            onChange={handleTitleChange}
-            placeholder="Note title..."
-            style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              border: 'none',
-              outline: 'none',
-              width: '100%',
-              background: 'transparent',
-              color: '#1f2937'
-            }}
-          />
-        </div>
-        
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
+        {/* Top toolbar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'space-between',
-          fontSize: '14px',
-          color: '#6b7280'
+          padding: '12px 24px',
+          borderBottom: '1px solid #f1f5f9'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div className="real-time-indicator">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="real-time-indicator" style={{ marginBottom: 0 }}>
               <div className={`dot ${isOnline ? '' : 'offline'}`} 
                    style={{ backgroundColor: isOnline ? '#10b981' : '#ef4444' }} />
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? 'Synced' : 'Offline'}
             </div>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Clock size={14} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#6b7280' }}>
+              <Clock size={12} />
               {formatLastSaved(lastSaved)}
             </div>
-            
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#9ca3af',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <span>Ctrl+S to save</span>
-              <span>•</span>
-              <span>Ctrl+Del to delete</span>
-            </div>
           </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isSaving && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <div className="spinner" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#6b7280' }}>
+                <div className="spinner" style={{ width: '12px', height: '12px' }} />
                 <span>Saving...</span>
               </div>
             )}
             
             <button
-              onClick={() => {
-                if (onMoveNote) {
-                  onMoveNote(note);
-                }
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              style={{
+                padding: '6px 8px',
+                background: 'transparent',
+                border: '1px solid #e5e7eb',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                color: '#6b7280',
+                transition: 'all 0.2s ease'
               }}
-              className="btn btn-secondary"
-              style={{ fontSize: '12px', padding: '6px 12px' }}
-              title="Move note to another folder"
+              title={isFullscreen ? "Exit focus mode" : "Enter focus mode"}
             >
-              <Move size={14} />
-              Move
-            </button>
-            
-            <button
-              onClick={handleDeleteNote}
-              className="btn btn-danger"
-              style={{ fontSize: '12px', padding: '6px 12px' }}
-              title="Delete note"
-            >
-              <Trash2 size={14} />
-              Delete
+              {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+              {isFullscreen ? 'Exit Focus' : 'Focus'}
             </button>
             
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="btn btn-primary"
-              style={{ fontSize: '12px', padding: '6px 12px' }}
+              style={{
+                padding: '6px 12px',
+                background: isSaving ? '#f3f4f6' : '#10b981',
+                color: isSaving ? '#9ca3af' : 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '11px',
+                fontWeight: '500',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s ease'
+              }}
             >
-              <Save size={14} />
+              <Save size={12} />
               Save
             </button>
           </div>
         </div>
+
+        {/* Title section */}
+        <div style={{ padding: '20px 24px 16px' }}>
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={title}
+            onChange={handleTitleChange}
+            placeholder="Untitled"
+            className="evernote-title"
+            style={{
+              fontSize: '28px',
+              fontWeight: '600',
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              background: 'transparent',
+              color: '#1f2937',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+              lineHeight: '1.2',
+              padding: '8px 0',
+              transition: 'all 0.2s ease'
+            }}
+          />
+          
+          {/* Note metadata */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            marginTop: '8px',
+            fontSize: '13px',
+            color: '#6b7280'
+          }}>
+            <span>Created {new Date(note?.createdAt).toLocaleDateString('en-US', { 
+              month: 'long', 
+              day: 'numeric', 
+              year: 'numeric' 
+            })}</span>
+            <span>•</span>
+            <span>{content.length} characters</span>
+            <span>•</span>
+            <span>{content.split(/\s+/).filter(word => word.length > 0).length} words</span>
+          </div>
+        </div>
+        
+        {/* Formatting Toolbar */}
+        <div className="evernote-toolbar">
+          <FormattingToolbar 
+            onFormat={handleFormat} 
+            disabled={isSaving}
+          />
+        </div>
       </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, padding: '20px', display: 'flex', flexDirection: 'column' }}>
-        <textarea
-          value={content}
-          onChange={handleContentChange}
-          placeholder="Start writing your note..."
-          className="note-editor"
-          style={{ 
-            flex: 1,
-            minHeight: '300px',
-            resize: 'none',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            padding: '16px',
-            fontSize: '14px',
-            lineHeight: '1.6',
-            fontFamily: 'inherit',
-            marginBottom: '20px'
-          }}
-        />
-        
-        {/* Attachments */}
-        <AttachmentManager
-          noteId={note.id}
-          groupId={groupId}
-          folderId={folderId}
-          attachments={attachments}
-          onAttachmentsChange={setAttachments}
-          currentUser={currentUser}
-        />
+      {/* Evernote-style Editor */}
+      <div style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        background: '#ffffff',
+        position: 'relative'
+      }}>
+        {/* Main writing area */}
+        <div style={{ 
+          flex: 1, 
+          display: 'flex', 
+          flexDirection: 'column',
+          maxWidth: '900px',
+          margin: '0 auto',
+          width: '100%',
+          padding: '32px 24px'
+        }}>
+          <textarea
+            ref={textareaRef}
+            value={content}
+            onChange={handleContentChange}
+            placeholder="Start writing..."
+            className="evernote-editor note-content"
+            style={{ 
+              flex: 1,
+              minHeight: isFullscreen ? 'calc(100vh - 300px)' : '500px',
+              resize: 'none',
+              border: 'none',
+              padding: '0',
+              fontSize: '16px',
+              lineHeight: '1.75',
+              fontFamily: 'Charter, "Bitstream Charter", "Sitka Text", Cambria, serif',
+              outline: 'none',
+              background: 'transparent',
+              color: '#2d3748',
+              letterSpacing: '0.01em'
+            }}
+          />
+        </div>
+
+        {/* Side panel for actions */}
+        <div style={{
+          position: 'absolute',
+          right: '24px',
+          top: '32px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          opacity: 0.7,
+          transition: 'opacity 0.2s ease'
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+        >
+          <button
+            onClick={() => {
+              if (onMoveNote) {
+                onMoveNote(note);
+              }
+            }}
+            style={{
+              padding: '8px',
+              background: 'rgba(107, 114, 128, 0.1)',
+              border: '1px solid rgba(107, 114, 128, 0.2)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#6b7280',
+              transition: 'all 0.2s ease'
+            }}
+            title="Move note to another folder"
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(107, 114, 128, 0.15)';
+              e.target.style.color = '#374151';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(107, 114, 128, 0.1)';
+              e.target.style.color = '#6b7280';
+            }}
+          >
+            <Move size={16} />
+          </button>
+          
+          <button
+            onClick={handleDeleteNote}
+            style={{
+              padding: '8px',
+              background: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ef4444',
+              transition: 'all 0.2s ease'
+            }}
+            title="Delete note"
+            onMouseEnter={(e) => {
+              e.target.style.background = 'rgba(239, 68, 68, 0.15)';
+              e.target.style.color = '#dc2626';
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.background = 'rgba(239, 68, 68, 0.1)';
+              e.target.style.color = '#ef4444';
+            }}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+
+        {/* Attachments section */}
+        <div style={{ 
+          padding: '24px',
+          borderTop: '1px solid #f1f5f9',
+          background: '#fafbfc'
+        }}>
+          <AttachmentManager
+            noteId={note.id}
+            groupId={groupId}
+            folderId={folderId}
+            attachments={attachments}
+            onAttachmentsChange={setAttachments}
+            currentUser={currentUser}
+          />
+        </div>
       </div>
 
       {showDeleteDialog && (

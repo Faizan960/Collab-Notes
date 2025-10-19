@@ -22,6 +22,10 @@ import FolderModal from './FolderModal';
 import InviteFriendModal from './InviteFriendModal';
 import InvitationSystem from './InvitationSystem';
 import ConfirmationDialog from './ConfirmationDialog';
+import KeyboardShortcuts from './KeyboardShortcuts';
+import FolderGrid from './FolderGrid';
+import ProfileModal from './ProfileModal';
+import GroupSettings from './GroupSettings';
 
 export default function Dashboard() {
   // Delete group logic
@@ -50,6 +54,7 @@ export default function Dashboard() {
         setFolders([]);
         setSelectedFolder(null);
         setNotes([]);
+        setAllNotes([]);
         setSelectedNote(null);
       }
       toast.success('Group deleted successfully!');
@@ -64,6 +69,7 @@ export default function Dashboard() {
   const [folders, setFolders] = useState([]);
   const [selectedFolder, setSelectedFolder] = useState(null);
   const [notes, setNotes] = useState([]);
+  const [allNotes, setAllNotes] = useState([]);
   const [selectedNote, setSelectedNote] = useState(null);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -72,6 +78,26 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
+
+  // Listen for profile modal events
+  useEffect(() => {
+    const handleShowProfile = () => {
+      setShowProfileModal(true);
+    };
+
+    const handleShowGroupSettings = () => {
+      setShowGroupSettings(true);
+    };
+
+    window.addEventListener('showProfile', handleShowProfile);
+    window.addEventListener('showGroupSettings', handleShowGroupSettings);
+    return () => {
+      window.removeEventListener('showProfile', handleShowProfile);
+      window.removeEventListener('showGroupSettings', handleShowGroupSettings);
+    };
+  }, []);
 
   // Load user's groups
   useEffect(() => {
@@ -124,6 +150,44 @@ export default function Dashboard() {
       },
       (error) => {
         toast.error('Failed to load folders: ' + (error?.message || error));
+      }
+    );
+
+    return () => unsubscribe();
+  }, [selectedGroup]);
+
+  // Load all notes for all folders in selected group
+  useEffect(() => {
+    if (!selectedGroup) {
+      setAllNotes([]);
+      return;
+    }
+
+    const groupRef = ref(database, `groups/${selectedGroup.id}/folders`);
+    const unsubscribe = onValue(
+      groupRef,
+      (snapshot) => {
+        const foldersData = snapshot.val();
+        if (foldersData) {
+          const allNotesArray = [];
+          Object.entries(foldersData).forEach(([folderId, folderData]) => {
+            if (folderData.notes) {
+              Object.entries(folderData.notes).forEach(([noteId, noteData]) => {
+                allNotesArray.push({
+                  id: noteId,
+                  folderId: folderId,
+                  ...noteData
+                });
+              });
+            }
+          });
+          setAllNotes(allNotesArray);
+        } else {
+          setAllNotes([]);
+        }
+      },
+      (error) => {
+        console.error('Failed to load all notes:', error);
       }
     );
 
@@ -338,6 +402,16 @@ export default function Dashboard() {
     (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const handleGroupUpdate = (updatedGroup) => {
+    // Update the selected group with new data
+    setSelectedGroup(updatedGroup);
+    
+    // Update the groups list
+    setGroups(prev => prev.map(group => 
+      group.id === updatedGroup.id ? { ...group, ...updatedGroup } : group
+    ));
+  };
+
   return (
     <div style={{ display: 'flex', height: '100vh' }}>
       <Sidebar
@@ -363,13 +437,119 @@ export default function Dashboard() {
         onDeleteGroup={handleDeleteGroup}
       />
 
-      <div className="main-content" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {/* Show group participants above folders */}
+      <div className="main-content" style={{ 
+        flex: 1, 
+        display: 'flex', 
+        flexDirection: 'column',
+        background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+        minHeight: '100vh'
+      }}>
+        {/* Enhanced header with group info */}
         {selectedGroup && (
-          <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '8px 12px', marginBottom: '12px' }}>
+          <div style={{ 
+            background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)', 
+            borderRadius: '12px', 
+            padding: '16px 20px', 
+            marginBottom: '20px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.8)'
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'space-between',
+              marginBottom: '12px'
+            }}>
+              <h2 style={{ 
+                fontSize: '20px', 
+                fontWeight: '600', 
+                color: '#1f2937',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <Users size={20} />
+                {selectedGroup.name}
+              </h2>
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                fontSize: '12px',
+                color: '#6b7280'
+              }}>
+                {selectedFolder && (
+                  <>
+                    <span style={{ 
+                      background: '#dbeafe',
+                      color: '#1d4ed8',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontWeight: '500'
+                    }}>
+                      📁 {selectedFolder.name}
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
+                <span>Role: {selectedGroup.role}</span>
+              </div>
+            </div>
             <GroupMembers groupId={selectedGroup.id} currentUser={currentUser} />
           </div>
         )}
+
+        {/* Breadcrumb Navigation */}
+        {selectedGroup && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '0 20px',
+            marginBottom: '16px',
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            <span 
+              onClick={() => {
+                setSelectedFolder(null);
+                setSelectedNote(null);
+              }}
+              style={{ 
+                cursor: 'pointer',
+                color: !selectedFolder ? '#3b82f6' : '#6b7280',
+                fontWeight: !selectedFolder ? '500' : '400',
+                textDecoration: 'none'
+              }}
+            >
+              {selectedGroup.name}
+            </span>
+            {selectedFolder && (
+              <>
+                <span>/</span>
+                <span 
+                  onClick={() => setSelectedNote(null)}
+                  style={{ 
+                    cursor: 'pointer',
+                    color: !selectedNote ? '#3b82f6' : '#6b7280',
+                    fontWeight: !selectedNote ? '500' : '400'
+                  }}
+                >
+                  {selectedFolder.name}
+                </span>
+              </>
+            )}
+            {selectedNote && (
+              <>
+                <span>/</span>
+                <span style={{ color: '#3b82f6', fontWeight: '500' }}>
+                  {selectedNote.title}
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
         {selectedNote ? (
           <NoteEditor
             note={selectedNote}
@@ -379,30 +559,254 @@ export default function Dashboard() {
             onDeleteNote={handleDeleteNote}
             onMoveNote={handleMoveNote}
           />
+        ) : selectedFolder ? (
+          <div style={{ padding: '0 20px' }}>
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.8)',
+              borderRadius: '12px',
+              padding: '20px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255, 255, 255, 0.3)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}>
+                <div>
+                  <h2 style={{
+                    fontSize: '24px',
+                    fontWeight: '600',
+                    color: '#1f2937',
+                    margin: 0,
+                    marginBottom: '4px'
+                  }}>
+                    📁 {selectedFolder.name}
+                  </h2>
+                  <p style={{
+                    fontSize: '14px',
+                    color: '#6b7280',
+                    margin: 0
+                  }}>
+                    {filteredNotes.length} note{filteredNotes.length !== 1 ? 's' : ''} in this folder
+                  </p>
+                </div>
+                <button
+                  onClick={handleCreateNote}
+                  style={{
+                    padding: '10px 16px',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <Plus size={16} />
+                  New Note
+                </button>
+              </div>
+
+              {/* Notes Grid */}
+              {filteredNotes.length === 0 ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '60px 20px',
+                  background: 'rgba(248, 250, 252, 0.5)',
+                  borderRadius: '12px',
+                  border: '2px dashed #d1d5db'
+                }}>
+                  <FileText size={48} style={{ color: '#9ca3af', marginBottom: '16px' }} />
+                  <h3 style={{ 
+                    fontSize: '18px', 
+                    fontWeight: '600', 
+                    color: '#374151',
+                    marginBottom: '8px',
+                    margin: 0
+                  }}>
+                    No notes yet
+                  </h3>
+                  <p style={{ 
+                    color: '#6b7280', 
+                    fontSize: '14px',
+                    textAlign: 'center',
+                    marginBottom: '24px'
+                  }}>
+                    Create your first note to start collaborating
+                  </p>
+                  <button
+                    onClick={handleCreateNote}
+                    style={{
+                      padding: '12px 24px',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <Plus size={16} />
+                    Create First Note
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                  gap: '16px'
+                }}>
+                  {filteredNotes.map((note) => (
+                    <div
+                      key={note.id}
+                      onClick={() => setSelectedNote(note)}
+                      style={{
+                        padding: '16px',
+                        background: 'white',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                      }}
+                    >
+                      <h4 style={{
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: '#1f2937',
+                        margin: 0,
+                        marginBottom: '8px'
+                      }}>
+                        {note.title}
+                      </h4>
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#6b7280',
+                        margin: 0,
+                        lineHeight: '1.4',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden'
+                      }}>
+                        {note.content || 'Empty note'}
+                      </p>
+                      <div style={{
+                        marginTop: '12px',
+                        fontSize: '12px',
+                        color: '#9ca3af'
+                      }}>
+                        Updated {new Date(note.updatedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : selectedGroup ? (
+          <div style={{ padding: '0 20px' }}>
+            <FolderGrid
+              folders={folders}
+              selectedFolder={selectedFolder}
+              onSelectFolder={setSelectedFolder}
+              onCreateFolder={() => setShowFolderModal(true)}
+              selectedGroup={selectedGroup}
+              notes={allNotes}
+            />
+          </div>
         ) : (
           <div className="empty-state" style={{ 
             display: 'flex', 
             alignItems: 'center', 
             justifyContent: 'center', 
             height: '100%',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            background: 'rgba(255, 255, 255, 0.5)',
+            borderRadius: '12px',
+            margin: '20px',
+            padding: '40px',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255, 255, 255, 0.3)'
           }}>
-            <FileText size={64} />
-            <h2 style={{ marginBottom: '8px', color: '#374151' }}>No note selected</h2>
-            <p style={{ marginBottom: '24px' }}>Select a note from the sidebar or create a new one</p>
+            <div style={{
+              width: '120px',
+              height: '120px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '24px',
+              boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)'
+            }}>
+              <FileText size={48} color="white" />
+            </div>
+            <h2 style={{ 
+              marginBottom: '8px', 
+              color: '#1f2937',
+              fontSize: '24px',
+              fontWeight: '600'
+            }}>
+              No note selected
+            </h2>
+            <p style={{ 
+              marginBottom: '32px', 
+              color: '#6b7280',
+              fontSize: '16px',
+              textAlign: 'center',
+              maxWidth: '400px'
+            }}>
+              {selectedGroup && selectedFolder 
+                ? 'Select a note from the sidebar or create a new one to start collaborating'
+                : 'Select a group and folder to begin taking notes'
+              }
+            </p>
             
             {selectedGroup && selectedFolder && (
               <button
                 onClick={handleCreateNote}
                 className="btn btn-primary"
-                style={{ padding: '12px 24px' }}
+                style={{ 
+                  padding: '14px 28px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+                  transition: 'all 0.2s ease'
+                }}
               >
-                <Plus size={16} />
-                Create New Note
+                <Plus size={18} />
+                Create Your First Note
               </button>
             )}
-            
-
           </div>
         )}
       </div>
@@ -453,6 +857,25 @@ export default function Dashboard() {
           type="danger"
         />
       )}
+
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        currentUser={currentUser}
+      />
+
+      {/* Group Settings Modal */}
+      <GroupSettings
+        isOpen={showGroupSettings}
+        onClose={() => setShowGroupSettings(false)}
+        group={selectedGroup}
+        currentUser={currentUser}
+        onGroupUpdate={handleGroupUpdate}
+      />
+
+      {/* Keyboard Shortcuts Helper */}
+      <KeyboardShortcuts />
     </div>
   );
 }

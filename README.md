@@ -1,4 +1,4 @@
-# CollabNotes - Real-Time Collaborative Note-Taking Platform
+# CollabNotes - Real-Time Collaborative Note-Taking Platform.
 
 A modern web-based collaborative note-taking platform that allows multiple users to create, share, and organize notes in real-time using Firebase.
 
